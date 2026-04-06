@@ -46,6 +46,12 @@ export type MinecraftMap = {
   colors: number[];
 };
 
+export type MapGridLayout = {
+  cells: Array<Array<number | null>>;
+  columns: number;
+  rows: number;
+};
+
 let mapIdsPromise: Promise<number[]> | undefined;
 
 function getMapFilePath(id: number) {
@@ -137,6 +143,14 @@ export async function readMinecraftMap(id: number): Promise<MinecraftMap> {
 }
 
 export function createMapBitmap(colors: number[], width = MAP_SIZE, height = MAP_SIZE) {
+  return createBitmap(width, height, (x, y) => getMapRgbColor(colors[y * width + x] ?? 0));
+}
+
+function createBitmap(
+  width: number,
+  height: number,
+  getPixel: (x: number, y: number) => readonly [number, number, number],
+) {
   const bytesPerPixel = 4;
   const pixelArraySize = width * height * bytesPerPixel;
   const fileHeaderSize = 14;
@@ -164,7 +178,7 @@ export function createMapBitmap(colors: number[], width = MAP_SIZE, height = MAP
 
   for (let y = height - 1; y >= 0; y -= 1) {
     for (let x = 0; x < width; x += 1) {
-      const [red, green, blue] = getMapRgbColor(colors[y * width + x] ?? 0);
+      const [red, green, blue] = getPixel(x, y);
       bytes[pixelOffset] = blue;
       bytes[pixelOffset + 1] = green;
       bytes[pixelOffset + 2] = red;
@@ -174,4 +188,86 @@ export function createMapBitmap(colors: number[], width = MAP_SIZE, height = MAP
   }
 
   return Buffer.from(buffer);
+}
+
+export function parseMapGridLayout(input: string) {
+  const lines = input
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+
+  if (lines.length === 0) {
+    throw new Error("Layout is empty");
+  }
+
+  const cells = lines.map((line) =>
+    line
+      .split(/[\s,|]+/)
+      .filter((token) => token.length > 0)
+      .map((token) => {
+        if (token === "_" || token === "." || token === "-") {
+          return null;
+        }
+
+        const id = Number.parseInt(token, 10);
+
+        if (!Number.isSafeInteger(id) || id < 0) {
+          throw new Error(`Invalid map id "${token}" in layout`);
+        }
+
+        return id;
+      }),
+  );
+
+  const columns = Math.max(...cells.map((row) => row.length));
+
+  if (columns === 0) {
+    throw new Error("Layout has no cells");
+  }
+
+  const normalized = cells.map((row) => {
+    const nextRow = [...row];
+
+    while (nextRow.length < columns) {
+      nextRow.push(null);
+    }
+
+    return nextRow;
+  });
+
+  return {
+    cells: normalized,
+    columns,
+    rows: normalized.length,
+  } satisfies MapGridLayout;
+}
+
+export async function createCompositeMapBitmap(layout: MapGridLayout) {
+  const uniqueIds = [...new Set(layout.cells.flat().filter((id): id is number => id !== null))];
+  const loadedMaps = await Promise.all(
+    uniqueIds.map(async (id) => [id, await readMinecraftMap(id)] as const),
+  );
+  const mapsById = new Map(loadedMaps);
+  const width = layout.columns * MAP_SIZE;
+  const height = layout.rows * MAP_SIZE;
+
+  return createBitmap(width, height, (x, y) => {
+    const column = Math.floor(x / MAP_SIZE);
+    const row = Math.floor(y / MAP_SIZE);
+    const mapId = layout.cells[row]?.[column] ?? null;
+
+    if (mapId === null) {
+      return [236, 230, 220] as const;
+    }
+
+    const map = mapsById.get(mapId);
+
+    if (!map) {
+      return [160, 60, 60] as const;
+    }
+
+    const localX = x % MAP_SIZE;
+    const localY = y % MAP_SIZE;
+    return getMapRgbColor(map.colors[localY * MAP_SIZE + localX] ?? 0);
+  });
 }

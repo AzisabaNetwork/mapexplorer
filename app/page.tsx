@@ -117,6 +117,9 @@ export default async function Home({
             Next
           </Link>
         </div>
+        <div className="toolbar-links">
+          <Link href="/compose">Open map composer</Link>
+        </div>
       </section>
 
       <section className="gallery-grid">
