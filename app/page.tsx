@@ -1,65 +1,149 @@
 import Image from "next/image";
+import Link from "next/link";
+import { listMapIds } from "@/lib/minecraft-maps";
 
-export default function Home() {
+const PAGE_SIZE = 120;
+
+function getSingleValue(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+function buildPageHref(page: number, order: string, query: string) {
+  const params = new URLSearchParams();
+  params.set("page", String(page));
+  params.set("order", order);
+
+  if (query.length > 0) {
+    params.set("query", query);
+  }
+
+  return `/?${params.toString()}`;
+}
+
+export default async function Home({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
+  const resolved = await searchParams;
+  const page = Number.parseInt(getSingleValue(resolved.page) ?? "1", 10);
+  const order = getSingleValue(resolved.order) === "asc" ? "asc" : "desc";
+  const query = (getSingleValue(resolved.query) ?? "").trim();
+  const gallery = await listMapIds({
+    order,
+    page: Number.isFinite(page) ? page : 1,
+    pageSize: PAGE_SIZE,
+    query,
+  });
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+    <main className="map-shell">
+      <section className="hero-panel">
+        <div className="hero-copy">
+          <p className="eyebrow">Minecraft Map Dat Gallery</p>
+          <h1>map_*.dat をそのまま眺めるためのギャラリー</h1>
+          <p className="hero-text">
+            <code>prismarine-nbt</code> で <code>data.colors</code> を読み、
+            <code>MapColor.java</code> 相当の色計算で画像化しています。4
+            万件超の地図をファイル名ベースで検索しながら見られます。
           </p>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
+        <dl className="hero-stats">
+          <div>
+            <dt>Matches</dt>
+            <dd>{gallery.total.toLocaleString()}</dd>
+          </div>
+          <div>
+            <dt>Showing</dt>
+            <dd>{gallery.ids.length.toLocaleString()}</dd>
+          </div>
+          <div>
+            <dt>Page</dt>
+            <dd>
+              {gallery.currentPage} / {gallery.totalPages}
+            </dd>
+          </div>
+        </dl>
+      </section>
+
+      <section className="toolbar-panel">
+        <form className="toolbar-grid" action="/" method="get">
+          <label className="field">
+            <span>Search by map id</span>
+            <input
+              defaultValue={gallery.query}
+              name="query"
+              placeholder="105, 171, 400..."
+              type="search"
             />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+          </label>
+          <label className="field">
+            <span>Sort order</span>
+            <select defaultValue={gallery.order} name="order">
+              <option value="desc">Newest id first</option>
+              <option value="asc">Oldest id first</option>
+            </select>
+          </label>
+          <input name="page" type="hidden" value="1" />
+          <button className="primary-button" type="submit">
+            Apply
+          </button>
+        </form>
+
+        <div className="pager">
+          <Link
+            aria-disabled={gallery.currentPage <= 1}
+            className="pager-link"
+            href={buildPageHref(
+              Math.max(1, gallery.currentPage - 1),
+              gallery.order,
+              gallery.query,
+            )}
           >
-            Documentation
-          </a>
+            Previous
+          </Link>
+          <span className="pager-label">
+            Page {gallery.currentPage} of {gallery.totalPages}
+          </span>
+          <Link
+            aria-disabled={gallery.currentPage >= gallery.totalPages}
+            className="pager-link"
+            href={buildPageHref(
+              Math.min(gallery.totalPages, gallery.currentPage + 1),
+              gallery.order,
+              gallery.query,
+            )}
+          >
+            Next
+          </Link>
         </div>
-      </main>
-    </div>
+      </section>
+
+      <section className="gallery-grid">
+        {gallery.ids.map((id) => (
+          <article className="map-card" key={id}>
+            <Link className="map-preview" href={`/maps/${id}`}>
+              <Image
+                alt={`Minecraft map ${id}`}
+                height={128}
+                loading="lazy"
+                src={`/api/maps/${id}`}
+                unoptimized
+                width={128}
+              />
+            </Link>
+            <div className="map-card-body">
+              <div>
+                <p className="map-id">Map #{id}</p>
+                <p className="map-file">{`map_${id}.dat`}</p>
+              </div>
+              <div className="map-actions">
+                <Link href={`/maps/${id}`}>詳細</Link>
+              </div>
+            </div>
+          </article>
+        ))}
+      </section>
+    </main>
   );
 }
