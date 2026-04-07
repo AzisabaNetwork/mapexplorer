@@ -496,8 +496,8 @@ function createOgpRgba(
   }
 
   const source = createRgba(sourceWidth, sourceHeight, getPixel);
-  const availableWidth = OGP_IMAGE_WIDTH - 120;
-  const availableHeight = OGP_IMAGE_HEIGHT - 120;
+  const availableWidth = OGP_IMAGE_WIDTH - 20;
+  const availableHeight = OGP_IMAGE_HEIGHT - 20;
   const scale = Math.max(
     1,
     Math.floor(Math.min(availableWidth / sourceWidth, availableHeight / sourceHeight)),
