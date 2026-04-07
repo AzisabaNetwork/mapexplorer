@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { readMinecraftMap } from "@/lib/minecraft-maps";
+import type {Metadata} from "next";
 
 function parseMapId(value: string) {
   const id = Number.parseInt(value, 10);
@@ -10,6 +11,27 @@ function parseMapId(value: string) {
 
 function formatBoolean(value: boolean) {
   return value ? "Yes" : "No";
+}
+
+export async function generateMetadata({
+    params,
+}: { params: Promise<{ id: string }>; }): Promise<Metadata> {
+  const id = (await params).id
+
+  return {
+    title: `Map Explorer - Map ${id}`,
+    description: "地図を見るツール",
+    metadataBase: "https://life-mapexplorer.azisaba.net",
+    openGraph: {
+      images: {
+        url: `/api/maps/${id}`,
+        width: 1200,
+        height: 630,
+        alt: `Minecraft map ${id}`,
+        type: "image/bmp",
+      },
+    },
+  }
 }
 
 export default async function MapDetailPage({

@@ -4,6 +4,7 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Map Explorer",
   description: "地図を見るツール",
+  metadataBase: "https://life-mapexplorer.azisaba.net",
 };
 
 export default function RootLayout({
