@@ -77,7 +77,7 @@ export default function ComposerClient({ initialCells }: ComposerClientProps) {
   const shareUrl = useMemo(() => {
     const params = new URLSearchParams();
     params.set("layout", deferredLayout);
-    return `${location.origin}/compose?${params.toString()}`;
+    return `https://life-mapexplorer.azisaba.net/compose?${params.toString()}`;
   }, [deferredLayout]);
   const uniqueIds = useMemo(
     () => [...new Set(cells.flat().filter((id): id is number => id !== null))],
