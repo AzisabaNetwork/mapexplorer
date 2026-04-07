@@ -3,10 +3,13 @@ import { Buffer } from "node:buffer";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
+import { encode as encodePng } from "fast-png";
 import { read } from "nbtify";
 import { getMapRgbColor } from "./map-colors";
 
 const MAP_SIZE = 128;
+const OGP_IMAGE_WIDTH = 1200;
+const OGP_IMAGE_HEIGHT = 630;
 const MAP_DATA_DIR = process.env.MAP_DATA_DIR ??
   path.resolve(process.cwd(), "public", ["da", "ta"].join(""));
 const MAP_INDEX_FILE = "map-index.json";
@@ -284,6 +287,15 @@ export function createMapBitmap(colors: number[], width = MAP_SIZE, height = MAP
   return createBitmap(width, height, (x, y) => getMapRgbColor(colors[y * width + x] ?? 0));
 }
 
+export function createMapPng(
+  colors: number[],
+  width = MAP_SIZE,
+  height = MAP_SIZE,
+  options?: { ogp?: boolean },
+) {
+  return createPng(width, height, (x, y) => getMapRgbColor(colors[y * width + x] ?? 0), options);
+}
+
 function createBitmap(
   width: number,
   height: number,
@@ -381,6 +393,19 @@ export function parseMapGridLayout(input: string) {
 }
 
 export async function createCompositeMapBitmap(layout: MapGridLayout) {
+  const renderer = await createCompositeMapRenderer(layout);
+  return createBitmap(renderer.width, renderer.height, renderer.getPixel);
+}
+
+export async function createCompositeMapPng(
+  layout: MapGridLayout,
+  options?: { ogp?: boolean },
+) {
+  const renderer = await createCompositeMapRenderer(layout);
+  return createPng(renderer.width, renderer.height, renderer.getPixel, options);
+}
+
+async function createCompositeMapRenderer(layout: MapGridLayout) {
   const uniqueIds = [...new Set(layout.cells.flat().filter((id): id is number => id !== null))];
   const loadedMaps = await Promise.all(
     uniqueIds.map(async (id) => [id, await readMinecraftMap(id)] as const),
@@ -388,8 +413,10 @@ export async function createCompositeMapBitmap(layout: MapGridLayout) {
   const mapsById = new Map(loadedMaps);
   const width = layout.columns * MAP_SIZE;
   const height = layout.rows * MAP_SIZE;
-
-  return createBitmap(width, height, (x, y) => {
+  return {
+    width,
+    height,
+    getPixel: (x: number, y: number) => {
     const column = Math.floor(x / MAP_SIZE);
     const row = Math.floor(y / MAP_SIZE);
     const mapId = layout.cells[row]?.[column] ?? null;
@@ -407,5 +434,95 @@ export async function createCompositeMapBitmap(layout: MapGridLayout) {
     const localX = x % MAP_SIZE;
     const localY = y % MAP_SIZE;
     return getMapRgbColor(map.colors[localY * MAP_SIZE + localX] ?? 0);
+    },
+  };
+}
+
+function createPng(
+  width: number,
+  height: number,
+  getPixel: (x: number, y: number) => readonly [number, number, number],
+  options?: { ogp?: boolean },
+) {
+  const rgba = options?.ogp
+    ? createOgpRgba(width, height, getPixel)
+    : createRgba(width, height, getPixel);
+
+  const png = encodePng({
+    width: rgba.width,
+    height: rgba.height,
+    data: rgba.data,
+    channels: 4,
+    depth: 8,
   });
+
+  return Buffer.from(png);
+}
+
+function createRgba(
+  width: number,
+  height: number,
+  getPixel: (x: number, y: number) => readonly [number, number, number],
+) {
+  const data = new Uint8Array(width * height * 4);
+  let offset = 0;
+
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const [red, green, blue] = getPixel(x, y);
+      data[offset] = red;
+      data[offset + 1] = green;
+      data[offset + 2] = blue;
+      data[offset + 3] = 0xff;
+      offset += 4;
+    }
+  }
+
+  return { width, height, data };
+}
+
+function createOgpRgba(
+  sourceWidth: number,
+  sourceHeight: number,
+  getPixel: (x: number, y: number) => readonly [number, number, number],
+) {
+  const background = new Uint8Array(OGP_IMAGE_WIDTH * OGP_IMAGE_HEIGHT * 4);
+
+  for (let offset = 0; offset < background.length; offset += 4) {
+    background[offset] = 239;
+    background[offset + 1] = 230;
+    background[offset + 2] = 212;
+    background[offset + 3] = 0xff;
+  }
+
+  const source = createRgba(sourceWidth, sourceHeight, getPixel);
+  const availableWidth = OGP_IMAGE_WIDTH - 120;
+  const availableHeight = OGP_IMAGE_HEIGHT - 120;
+  const scale = Math.max(
+    1,
+    Math.floor(Math.min(availableWidth / sourceWidth, availableHeight / sourceHeight)),
+  );
+  const drawnWidth = sourceWidth * scale;
+  const drawnHeight = sourceHeight * scale;
+  const offsetX = Math.floor((OGP_IMAGE_WIDTH - drawnWidth) / 2);
+  const offsetY = Math.floor((OGP_IMAGE_HEIGHT - drawnHeight) / 2);
+
+  for (let y = 0; y < drawnHeight; y += 1) {
+    for (let x = 0; x < drawnWidth; x += 1) {
+      const sourceX = Math.floor(x / scale);
+      const sourceY = Math.floor(y / scale);
+      const sourceOffset = (sourceY * sourceWidth + sourceX) * 4;
+      const targetOffset = ((offsetY + y) * OGP_IMAGE_WIDTH + (offsetX + x)) * 4;
+      background[targetOffset] = source.data[sourceOffset];
+      background[targetOffset + 1] = source.data[sourceOffset + 1];
+      background[targetOffset + 2] = source.data[sourceOffset + 2];
+      background[targetOffset + 3] = 0xff;
+    }
+  }
+
+  return {
+    width: OGP_IMAGE_WIDTH,
+    height: OGP_IMAGE_HEIGHT,
+    data: background,
+  };
 }

@@ -24,11 +24,11 @@ export async function generateMetadata({
     metadataBase: "https://life-mapexplorer.azisaba.net",
     openGraph: {
       images: {
-        url: `/api/maps/${id}`,
+        url: `/api/maps/${id}.png?ogp=true`,
         width: 1200,
         height: 630,
         alt: `Minecraft map ${id}`,
-        type: "image/bmp",
+        type: "image/png",
       },
     },
   }
