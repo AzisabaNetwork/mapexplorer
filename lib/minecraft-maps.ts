@@ -11,6 +11,7 @@ const MAP_DATA_DIR = process.env.MAP_DATA_DIR ??
   path.resolve(process.cwd(), "public", ["da", "ta"].join(""));
 const MAP_FILENAME_PATTERN = /^map_(\d+)\.dat$/;
 type MinecraftMapBucket = NonNullable<CloudflareEnv["MINECRAFT_MAP_R2_BUCKET"]>;
+type NumericLike = number | bigint | Number | undefined | null;
 
 type SimplifiedMapData = {
   DataVersion?: number;
@@ -56,6 +57,26 @@ export type MapGridLayout = {
 };
 
 const mapIdsPromiseBySource = new Map<string, Promise<number[]>>();
+
+function toPlainNumber(value: NumericLike) {
+  if (value === undefined || value === null) {
+    return null;
+  }
+
+  if (typeof value === "bigint") {
+    return Number(value);
+  }
+
+  return Number(value.valueOf());
+}
+
+function toPlainDimension(value: number | string | Number | undefined | null) {
+  if (typeof value === "string") {
+    return value;
+  }
+
+  return toPlainNumber(value);
+}
 
 function getMapFilePath(id: number) {
   return path.join(MAP_DATA_DIR, ["map_", String(id), ".dat"].join(""));
@@ -189,21 +210,21 @@ export async function readMinecraftMap(id: number): Promise<MinecraftMap> {
 
   return {
     id,
-    dataVersion: simplified.DataVersion ?? null,
+    dataVersion: toPlainNumber(simplified.DataVersion),
     dimensions: {
       width: MAP_SIZE,
       height: MAP_SIZE,
     },
     metadata: {
       banners: metadata?.banners?.length ?? 0,
-      dimension: metadata?.dimension ?? null,
+      dimension: toPlainDimension(metadata?.dimension),
       frames: metadata?.frames?.length ?? 0,
-      locked: metadata?.locked === 1,
-      scale: metadata?.scale ?? null,
-      trackingPosition: metadata?.trackingPosition === 1,
-      unlimitedTracking: metadata?.unlimitedTracking === 1,
-      xCenter: metadata?.xCenter ?? null,
-      zCenter: metadata?.zCenter ?? null,
+      locked: toPlainNumber(metadata?.locked) === 1,
+      scale: toPlainNumber(metadata?.scale),
+      trackingPosition: toPlainNumber(metadata?.trackingPosition) === 1,
+      unlimitedTracking: toPlainNumber(metadata?.unlimitedTracking) === 1,
+      xCenter: toPlainNumber(metadata?.xCenter),
+      zCenter: toPlainNumber(metadata?.zCenter),
     },
     colors,
   };
