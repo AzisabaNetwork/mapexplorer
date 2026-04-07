@@ -9,9 +9,11 @@ import { getMapRgbColor } from "./map-colors";
 const MAP_SIZE = 128;
 const MAP_DATA_DIR = process.env.MAP_DATA_DIR ??
   path.resolve(process.cwd(), "public", ["da", "ta"].join(""));
+const MAP_INDEX_FILE = "map-index.json";
 const MAP_FILENAME_PATTERN = /^map_(\d+)\.dat$/;
 type MinecraftMapBucket = NonNullable<CloudflareEnv["MINECRAFT_MAP_R2_BUCKET"]>;
-type NumericLike = number | bigint | Number | undefined | null;
+type NumberObjectLike = { valueOf(): number };
+type NumericLike = number | bigint | NumberObjectLike | undefined | null;
 
 type SimplifiedMapData = {
   DataVersion?: number;
@@ -70,7 +72,7 @@ function toPlainNumber(value: NumericLike) {
   return Number(value.valueOf());
 }
 
-function toPlainDimension(value: number | string | Number | undefined | null) {
+function toPlainDimension(value: number | string | NumberObjectLike | undefined | null) {
   if (typeof value === "string") {
     return value;
   }
@@ -104,7 +106,40 @@ async function readMapIdsFromDisk() {
     .sort((left, right) => left - right);
 }
 
-async function readMapIdsFromR2(bucket: MinecraftMapBucket) {
+function parseMapIndexPayload(payload: string) {
+  const parsed = JSON.parse(payload) as number[] | { ids?: number[] };
+  const ids = Array.isArray(parsed) ? parsed : parsed.ids;
+
+  if (!Array.isArray(ids)) {
+    throw new Error("Invalid map index payload");
+  }
+
+  return ids
+    .map((id) => Number(id))
+    .filter((id) => Number.isSafeInteger(id) && id >= 0)
+    .sort((left, right) => left - right);
+}
+
+async function readMapIndexFromDisk() {
+  try {
+    const payload = await fs.readFile(path.join(MAP_DATA_DIR, MAP_INDEX_FILE), "utf8");
+    return parseMapIndexPayload(payload);
+  } catch {
+    return undefined;
+  }
+}
+
+async function readMapIndexFromR2(bucket: MinecraftMapBucket) {
+  const object = await bucket.get(MAP_INDEX_FILE);
+
+  if (!object) {
+    return undefined;
+  }
+
+  return parseMapIndexPayload(await object.text());
+}
+
+async function generateMapIndexFromR2(bucket: MinecraftMapBucket) {
   const ids: number[] = [];
   let cursor: string | undefined;
 
@@ -128,6 +163,19 @@ async function readMapIdsFromR2(bucket: MinecraftMapBucket) {
   } while (cursor);
 
   ids.sort((left, right) => left - right);
+
+  const payload = `${JSON.stringify({ ids })}\n`;
+
+  try {
+    await bucket.put(MAP_INDEX_FILE, payload, {
+      httpMetadata: {
+        contentType: "application/json",
+      },
+    });
+  } catch (error) {
+    console.warn("Failed to persist generated map-index.json to R2", error);
+  }
+
   return ids;
 }
 
@@ -156,7 +204,9 @@ export async function getAllMapIds() {
     return existingPromise;
   }
 
-  const nextPromise = bucket ? readMapIdsFromR2(bucket) : readMapIdsFromDisk();
+  const nextPromise = bucket
+    ? readMapIndexFromR2(bucket).then((ids) => ids ?? generateMapIndexFromR2(bucket))
+    : readMapIndexFromDisk().then((ids) => ids ?? readMapIdsFromDisk());
   mapIdsPromiseBySource.set(sourceKey, nextPromise);
   return nextPromise;
 }
