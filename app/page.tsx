@@ -119,7 +119,7 @@ export default async function Home({
       <section className="gallery-grid">
         {gallery.ids.map((id) => (
           <article className="map-card" key={id}>
-            <Link className="map-preview" href={`/maps/${id}`}>
+            <a className="map-preview" href={`/maps/${id}`}>
               <Image
                 alt={`地図 ${id}`}
                 height={128}
@@ -128,14 +128,14 @@ export default async function Home({
                 unoptimized
                 width={128}
               />
-            </Link>
+            </a>
             <div className="map-card-body">
               <div>
                 <p className="map-id">地図 #{id}</p>
                 <p className="map-file">{`map_${id}.dat`}</p>
               </div>
               <div className="map-actions">
-                <Link href={`/maps/${id}`}>詳細</Link>
+                <a href={`/maps/${id}`}>詳細</a>
               </div>
             </div>
           </article>
