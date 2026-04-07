@@ -1,13 +1,16 @@
 import "server-only";
+import { Buffer } from "node:buffer";
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import { parse, simplify } from "prismarine-nbt";
+import { getCloudflareContext } from "@opennextjs/cloudflare";
+import { read } from "nbtify";
 import { getMapRgbColor } from "./map-colors";
 
 const MAP_SIZE = 128;
 const MAP_DATA_DIR = process.env.MAP_DATA_DIR ??
   path.resolve(process.cwd(), "public", ["da", "ta"].join(""));
 const MAP_FILENAME_PATTERN = /^map_(\d+)\.dat$/;
+type MinecraftMapBucket = NonNullable<CloudflareEnv["MINECRAFT_MAP_R2_BUCKET"]>;
 
 type SimplifiedMapData = {
   DataVersion?: number;
@@ -52,10 +55,19 @@ export type MapGridLayout = {
   rows: number;
 };
 
-let mapIdsPromise: Promise<number[]> | undefined;
+const mapIdsPromiseBySource = new Map<string, Promise<number[]>>();
 
 function getMapFilePath(id: number) {
   return path.join(MAP_DATA_DIR, ["map_", String(id), ".dat"].join(""));
+}
+
+async function getMinecraftMapBucket() {
+  try {
+    const { env } = await getCloudflareContext({ async: true });
+    return env.MINECRAFT_MAP_R2_BUCKET;
+  } catch {
+    return undefined;
+  }
 }
 
 async function readMapIdsFromDisk() {
@@ -71,9 +83,61 @@ async function readMapIdsFromDisk() {
     .sort((left, right) => left - right);
 }
 
-export function getAllMapIds() {
-  mapIdsPromise ??= readMapIdsFromDisk();
-  return mapIdsPromise;
+async function readMapIdsFromR2(bucket: MinecraftMapBucket) {
+  const ids: number[] = [];
+  let cursor: string | undefined;
+
+  do {
+    const listing = await bucket.list({
+      cursor,
+      limit: 1000,
+      prefix: "map_",
+    });
+
+    ids.push(
+      ...listing.objects
+        .map((object: { key: string }) => {
+          const match = object.key.match(MAP_FILENAME_PATTERN);
+          return match ? Number(match[1]) : null;
+        })
+        .filter((id: number | null): id is number => id !== null),
+    );
+
+    cursor = listing.truncated ? listing.cursor : undefined;
+  } while (cursor);
+
+  ids.sort((left, right) => left - right);
+  return ids;
+}
+
+async function readMapDatFile(id: number) {
+  const bucket = await getMinecraftMapBucket();
+
+  if (bucket) {
+    const object = await bucket.get(`map_${id}.dat`);
+
+    if (!object) {
+      throw new Error(`Map map_${id}.dat not found in R2`);
+    }
+
+    return Buffer.from(await object.arrayBuffer());
+  }
+
+  return fs.readFile(getMapFilePath(id));
+}
+
+export async function getAllMapIds() {
+  const bucket = await getMinecraftMapBucket();
+  const sourceKey = bucket ? "r2" : "disk";
+  const existingPromise = mapIdsPromiseBySource.get(sourceKey);
+
+  if (existingPromise) {
+    return existingPromise;
+  }
+
+  const nextPromise = bucket ? readMapIdsFromR2(bucket) : readMapIdsFromDisk();
+  mapIdsPromiseBySource.set(sourceKey, nextPromise);
+  return nextPromise;
 }
 
 export async function listMapIds(options?: {
@@ -111,14 +175,17 @@ export async function listMapIds(options?: {
 }
 
 export async function readMinecraftMap(id: number): Promise<MinecraftMap> {
-  const file = await fs.readFile(getMapFilePath(id));
-  const { parsed } = await parse(file);
-  const simplified = simplify(parsed) as SimplifiedMapData;
+  const file = await readMapDatFile(id);
+  const parsed = await read(file, { compression: "gzip", endian: "big" });
+  const simplified = parsed.data as SimplifiedMapData;
   const mapData = simplified.data;
+  const colors = mapData?.colors ? Array.from(mapData.colors) : undefined;
 
-  if (!mapData?.colors || mapData.colors.length !== MAP_SIZE * MAP_SIZE) {
+  if (!colors || colors.length !== MAP_SIZE * MAP_SIZE) {
     throw new Error(`Invalid map colors for map_${id}.dat`);
   }
+
+  const metadata = mapData;
 
   return {
     id,
@@ -128,17 +195,17 @@ export async function readMinecraftMap(id: number): Promise<MinecraftMap> {
       height: MAP_SIZE,
     },
     metadata: {
-      banners: mapData.banners?.length ?? 0,
-      dimension: mapData.dimension ?? null,
-      frames: mapData.frames?.length ?? 0,
-      locked: mapData.locked === 1,
-      scale: mapData.scale ?? null,
-      trackingPosition: mapData.trackingPosition === 1,
-      unlimitedTracking: mapData.unlimitedTracking === 1,
-      xCenter: mapData.xCenter ?? null,
-      zCenter: mapData.zCenter ?? null,
+      banners: metadata?.banners?.length ?? 0,
+      dimension: metadata?.dimension ?? null,
+      frames: metadata?.frames?.length ?? 0,
+      locked: metadata?.locked === 1,
+      scale: metadata?.scale ?? null,
+      trackingPosition: metadata?.trackingPosition === 1,
+      unlimitedTracking: metadata?.unlimitedTracking === 1,
+      xCenter: metadata?.xCenter ?? null,
+      zCenter: metadata?.zCenter ?? null,
     },
-    colors: mapData.colors,
+    colors,
   };
 }
 

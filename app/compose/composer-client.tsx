@@ -74,6 +74,11 @@ export default function ComposerClient({ initialCells }: ComposerClientProps) {
     params.set("layout", deferredLayout);
     return `/api/maps/compose?${params.toString()}`;
   }, [deferredLayout]);
+  const shareUrl = useMemo(() => {
+    const params = new URLSearchParams();
+    params.set("layout", deferredLayout);
+    return `${location.origin}/compose?${params.toString()}`;
+  }, [deferredLayout]);
   const uniqueIds = useMemo(
     () => [...new Set(cells.flat().filter((id): id is number => id !== null))],
     [cells],
@@ -171,21 +176,25 @@ export default function ComposerClient({ initialCells }: ComposerClientProps) {
       <div className="composer-shell">
         <section className="detail-panel composer-workbench">
         <div className="detail-copy">
-          <p className="eyebrow">Interactive Composer</p>
-          <h1>ドラッグ＆ドロップで map を配置</h1>
+          <p className="eyebrow">マップエディタ</p>
+          <p>使い方：ドラッグ＆ドロップで地図を配置</p>
           <p>
-            左のギャラリーから map を掴んでセルへドロップできます。既に置いたセル同士の入れ替え、
+            右のギャラリーから地図を掴んでセルへドロップできます。既に置いたセル同士の入れ替え、
             クリックで削除、行列の増減にも対応しています。
           </p>
+          <p>列をいっぱい増やしたときの横スクロールは一番下にあります</p>
         </div>
 
         <div className="composer-toolbar">
           <div className="composer-toolbar-group">
+            <button className="back-link" onClick={() => navigator.clipboard.writeText(shareUrl)}>
+              共有リンクをコピー
+            </button>
             <Link className="back-link" href="/">
-              Back to gallery
+              ギャラリーに戻る
             </Link>
             <a className="back-link" href={previewUrl} rel="noreferrer" target="_blank">
-              Open BMP
+              BMP(画像)を開く
             </a>
           </div>
         </div>
@@ -193,7 +202,6 @@ export default function ComposerClient({ initialCells }: ComposerClientProps) {
         <div className="composer-grid-stage">
           <div className="composer-grid-head">
             <div className="grid-axis-spacer">
-              <span>Rows</span>
             </div>
             <div
               className="grid-axis grid-axis-top"
@@ -214,7 +222,7 @@ export default function ComposerClient({ initialCells }: ComposerClientProps) {
                 type="button"
               >
                 <span aria-hidden="true">-</span>
-                <small>col</small>
+                <small>列</small>
               </button>
               <button
                 aria-label="Add column"
@@ -224,7 +232,7 @@ export default function ComposerClient({ initialCells }: ComposerClientProps) {
                 type="button"
               >
                 <span aria-hidden="true">+</span>
-                <small>col</small>
+                <small>列</small>
               </button>
             </div>
           </div>
@@ -239,7 +247,7 @@ export default function ComposerClient({ initialCells }: ComposerClientProps) {
                 type="button"
               >
                 <span aria-hidden="true">-</span>
-                <small>row</small>
+                <small>行</small>
               </button>
               <button
                 aria-label="Add row"
@@ -249,7 +257,7 @@ export default function ComposerClient({ initialCells }: ComposerClientProps) {
                 type="button"
               >
                 <span aria-hidden="true">+</span>
-                <small>row</small>
+                <small>行</small>
               </button>
             </div>
 
@@ -282,7 +290,7 @@ export default function ComposerClient({ initialCells }: ComposerClientProps) {
                         {rowIndex + 1},{columnIndex + 1}
                       </span>
                       {cell === null ? (
-                        <span className="composer-placeholder">Drop map here</span>
+                        <span className="composer-placeholder">ギャラリーからマップをここにドロップ</span>
                       ) : (
                         <div
                           className="composer-map"
@@ -335,11 +343,10 @@ export default function ComposerClient({ initialCells }: ComposerClientProps) {
           <section className="detail-sidebar composer-library-panel">
           <div className="library-header">
             <div>
-              <p className="eyebrow">Map Library</p>
-              <h2>Gallery</h2>
+              <p className="eyebrow">ギャラリー</p>
             </div>
             <label className="field">
-              <span>Search ids</span>
+              <span>IDで検索</span>
               <input
                 onChange={(event) => {
                   const nextValue = event.target.value;
@@ -357,8 +364,8 @@ export default function ComposerClient({ initialCells }: ComposerClientProps) {
           </div>
 
           <div className="library-meta">
-            <span>{library ? `${library.total.toLocaleString()} matches` : "Loading..."}</span>
-            <span>{isLoadingLibrary ? "Refreshing..." : `Page ${library?.currentPage ?? 1}`}</span>
+            <span>{library ? `${library.total.toLocaleString()}件一致` : "読み込み中..."}</span>
+            <span>{isLoadingLibrary ? "更新中..." : `ページ ${library?.currentPage ?? 1}`}</span>
           </div>
 
           <div className="library-scroll-area">
@@ -417,7 +424,7 @@ export default function ComposerClient({ initialCells }: ComposerClientProps) {
               }}
               type="button"
             >
-              Previous
+              ←
             </button>
             <span className="pager-label">
               {library ? `${library.currentPage} / ${library.totalPages}` : "1 / 1"}
@@ -433,7 +440,7 @@ export default function ComposerClient({ initialCells }: ComposerClientProps) {
               }}
               type="button"
             >
-              Next
+              →
             </button>
           </div>
           </section>
@@ -441,19 +448,19 @@ export default function ComposerClient({ initialCells }: ComposerClientProps) {
           <section className="detail-sidebar">
             <dl>
               <div>
-                <dt>Grid Size</dt>
+                <dt>グリッドサイズ</dt>
                 <dd>{`${columnCount} x ${rowCount}`}</dd>
               </div>
               <div>
-                <dt>Unique Maps</dt>
+                <dt>使用したユニークなマップの数</dt>
                 <dd>{uniqueIds.length}</dd>
               </div>
               <div>
-                <dt>Output Size</dt>
+                <dt>画像出力サイズ</dt>
                 <dd>{`${columnCount * 128} x ${rowCount * 128}`}</dd>
               </div>
               <div>
-                <dt>Layout</dt>
+                <dt>地図IDレイアウト</dt>
                 <dd className="composer-layout-code">{layout}</dd>
               </div>
             </dl>

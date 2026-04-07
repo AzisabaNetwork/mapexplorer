@@ -40,25 +40,19 @@ export default async function Home({
     <main className="map-shell">
       <section className="hero-panel">
         <div className="hero-copy">
-          <p className="eyebrow">Minecraft Map Dat Gallery</p>
-          <h1>map_*.dat をそのまま眺めるためのギャラリー</h1>
-          <p className="hero-text">
-            <code>prismarine-nbt</code> で <code>data.colors</code> を読み、
-            <code>MapColor.java</code> 相当の色計算で画像化しています。4
-            万件超の地図をファイル名ベースで検索しながら見られます。
-          </p>
+          <p className="eyebrow">地図ギャラリー</p>
         </div>
         <dl className="hero-stats">
           <div>
-            <dt>Matches</dt>
+            <dt>一致した件数</dt>
             <dd>{gallery.total.toLocaleString()}</dd>
           </div>
           <div>
-            <dt>Showing</dt>
+            <dt>表示中</dt>
             <dd>{gallery.ids.length.toLocaleString()}</dd>
           </div>
           <div>
-            <dt>Page</dt>
+            <dt>ページ</dt>
             <dd>
               {gallery.currentPage} / {gallery.totalPages}
             </dd>
@@ -69,7 +63,7 @@ export default async function Home({
       <section className="toolbar-panel">
         <form className="toolbar-grid" action="/" method="get">
           <label className="field">
-            <span>Search by map id</span>
+            <span>マップIDで検索</span>
             <input
               defaultValue={gallery.query}
               name="query"
@@ -78,15 +72,15 @@ export default async function Home({
             />
           </label>
           <label className="field">
-            <span>Sort order</span>
+            <span>並び替え</span>
             <select defaultValue={gallery.order} name="order">
-              <option value="desc">Newest id first</option>
-              <option value="asc">Oldest id first</option>
+              <option value="desc">新しい順</option>
+              <option value="asc">古い順</option>
             </select>
           </label>
           <input name="page" type="hidden" value="1" />
           <button className="primary-button" type="submit">
-            Apply
+            適用
           </button>
         </form>
 
@@ -100,10 +94,10 @@ export default async function Home({
               gallery.query,
             )}
           >
-            Previous
+            前のページ
           </Link>
           <span className="pager-label">
-            Page {gallery.currentPage} of {gallery.totalPages}
+            ページ {gallery.currentPage} / {gallery.totalPages}
           </span>
           <Link
             aria-disabled={gallery.currentPage >= gallery.totalPages}
@@ -114,11 +108,11 @@ export default async function Home({
               gallery.query,
             )}
           >
-            Next
+            次のページ
           </Link>
         </div>
         <div className="toolbar-links">
-          <Link href="/compose">Open map composer</Link>
+          <Link href="/compose">マップエディタを開く</Link>
         </div>
       </section>
 
@@ -127,7 +121,7 @@ export default async function Home({
           <article className="map-card" key={id}>
             <Link className="map-preview" href={`/maps/${id}`}>
               <Image
-                alt={`Minecraft map ${id}`}
+                alt={`地図 ${id}`}
                 height={128}
                 loading="lazy"
                 src={`/api/maps/${id}`}
@@ -137,7 +131,7 @@ export default async function Home({
             </Link>
             <div className="map-card-body">
               <div>
-                <p className="map-id">Map #{id}</p>
+                <p className="map-id">地図 #{id}</p>
                 <p className="map-file">{`map_${id}.dat`}</p>
               </div>
               <div className="map-actions">

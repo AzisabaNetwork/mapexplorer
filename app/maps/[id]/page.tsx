@@ -36,12 +36,7 @@ export default async function MapDetailPage({
     <main className="detail-layout">
       <section className="detail-panel">
         <div className="detail-copy">
-          <p className="eyebrow">Single Map View</p>
-          <h1>Map #{map.id}</h1>
-          <p>
-            <code>{`map_${map.id}.dat`}</code> の <code>data.colors</code> を{" "}
-            <code>MapColor.java</code> 相当のロジックで復元したプレビューです。
-          </p>
+          <h2>地図 #{map.id}</h2>
         </div>
 
         <div className="detail-preview">
@@ -56,16 +51,8 @@ export default async function MapDetailPage({
 
         <div className="detail-links">
           <Link className="back-link" href="/">
-            Back to gallery
+            ギャラリーに戻る
           </Link>
-          <a
-            className="back-link"
-            href={`/data/map_${map.id}.dat`}
-            rel="noreferrer"
-            target="_blank"
-          >
-            Open raw dat
-          </a>
         </div>
       </section>
 

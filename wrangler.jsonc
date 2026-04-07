@@ -1,0 +1,43 @@
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"main": ".open-next/worker.js",
+	"name": "mapexplorer",
+	"compatibility_date": "2026-04-07",
+	"compatibility_flags": [
+		"nodejs_compat"
+	],
+	"routes": [
+		{
+			"pattern": "life-mapexplorer.azisaba.net",
+			"custom_domain": true
+		}
+	],
+	"workers_dev": true,
+	"preview_urls": true,
+	"assets": {
+		"directory": ".open-next/assets",
+		"binding": "ASSETS"
+	},
+	"services": [
+		{
+			"binding": "WORKER_SELF_REFERENCE",
+			"service": "mapexplorer"
+		}
+	],
+	"r2_buckets": [
+		{
+			"binding": "NEXT_INC_CACHE_R2_BUCKET",
+			"bucket_name": "mapexplorer-opennext-cache"
+		},
+		{
+			"binding": "MINECRAFT_MAP_R2_BUCKET",
+			"bucket_name": "mapexplorer-minecraft-maps"
+		}
+	],
+	"images": {
+		"binding": "IMAGES"
+	},
+	"observability": {
+		"enabled": true
+	}
+}
