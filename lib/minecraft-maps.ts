@@ -1,11 +1,11 @@
 import "server-only";
-import { Buffer } from "node:buffer";
-import { promises as fs } from "node:fs";
+import {Buffer} from "node:buffer";
+import {promises as fs} from "node:fs";
 import path from "node:path";
-import { getCloudflareContext } from "@opennextjs/cloudflare";
-import { encode as encodePng } from "fast-png";
-import { read } from "nbtify";
-import { getMapRgbColor } from "./map-colors";
+import {getCloudflareContext} from "@opennextjs/cloudflare";
+import {encode as encodePng} from "fast-png";
+import {read} from "nbtify";
+import {getMapRgbColor} from "./map-colors";
 
 const MAP_SIZE = 128;
 const OGP_IMAGE_WIDTH = 1200;
@@ -496,11 +496,9 @@ function createOgpRgba(
   }
 
   const source = createRgba(sourceWidth, sourceHeight, getPixel);
-  const availableWidth = OGP_IMAGE_WIDTH - 20;
-  const availableHeight = OGP_IMAGE_HEIGHT - 20;
   const scale = Math.max(
     1,
-    Math.floor(Math.min(availableWidth / sourceWidth, availableHeight / sourceHeight)),
+    Math.floor(Math.min(OGP_IMAGE_WIDTH / sourceWidth, OGP_IMAGE_HEIGHT / sourceHeight)),
   );
   const drawnWidth = sourceWidth * scale;
   const drawnHeight = sourceHeight * scale;
