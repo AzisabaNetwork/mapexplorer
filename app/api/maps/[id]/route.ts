@@ -1,12 +1,22 @@
-import { createMapBitmap, readMinecraftMap } from "@/lib/minecraft-maps";
+import { createMapBitmap, createMapPng, readMinecraftMap } from "@/lib/minecraft-maps";
 
 function parseMapId(value: string) {
-  const id = Number.parseInt(value, 10);
+  const normalized = value.endsWith(".png") ? value.slice(0, -4) : value;
+
+  if (!/^\d+$/.test(normalized)) {
+    return null;
+  }
+
+  const id = Number.parseInt(normalized, 10);
   return Number.isSafeInteger(id) && id >= 0 ? id : null;
 }
 
+function wantsPng(value: string) {
+  return value.endsWith(".png");
+}
+
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id: rawId } = await params;
@@ -18,13 +28,17 @@ export async function GET(
 
   try {
     const map = await readMinecraftMap(id);
-    const image = createMapBitmap(map.colors, map.dimensions.width, map.dimensions.height);
+    const png = wantsPng(rawId);
+    const ogp = new URL(request.url).searchParams.get("ogp") === "true";
+    const image = png
+      ? createMapPng(map.colors, map.dimensions.width, map.dimensions.height, { ogp })
+      : createMapBitmap(map.colors, map.dimensions.width, map.dimensions.height);
 
     return new Response(image, {
       headers: {
         "Cache-Control": "public, max-age=3600",
         "Content-Length": String(image.byteLength),
-        "Content-Type": "image/bmp",
+        "Content-Type": png ? "image/png" : "image/bmp",
       },
     });
   } catch {
