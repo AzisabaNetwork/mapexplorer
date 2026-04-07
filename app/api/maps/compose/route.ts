@@ -1,8 +1,12 @@
+import { decodeMapGridLayout } from "@/lib/map-grid";
 import { createCompositeMapBitmap, parseMapGridLayout } from "@/lib/minecraft-maps";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  const layoutValue = searchParams.get("layout")?.trim() ?? "";
+  const encodedLayout = searchParams.get("layoutEncoded");
+  const layoutValue = (
+    encodedLayout ? decodeMapGridLayout(encodedLayout) : searchParams.get("layout") ?? ""
+  ).trim();
 
   if (layoutValue.length === 0) {
     return new Response("Missing layout query", { status: 400 });

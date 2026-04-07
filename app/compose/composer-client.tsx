@@ -9,7 +9,7 @@ import {
   useMemo,
   useState,
 } from "react";
-import { serializeMapGridLayout } from "@/lib/map-grid";
+import { encodeMapGridLayout, serializeMapGridLayout } from "@/lib/map-grid";
 
 type LibraryResponse = {
   currentPage: number;
@@ -71,7 +71,7 @@ export default function ComposerClient({ initialCells }: ComposerClientProps) {
   const deferredLayout = useDeferredValue(layout);
   const previewUrl = useMemo(() => {
     const params = new URLSearchParams();
-    params.set("layout", deferredLayout);
+    params.set("layoutEncoded", encodeMapGridLayout(deferredLayout));
     return `/api/maps/compose?${params.toString()}`;
   }, [deferredLayout]);
   const shareUrl = useMemo(() => {
